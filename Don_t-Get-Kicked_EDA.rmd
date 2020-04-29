@@ -1,0 +1,421 @@
+---
+title: "Predict if a car purchased at auction is a lemon"
+output:
+  html_document
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(plotly)
+library(ggpubr)
+library(reshape2)
+library(knitr)
+library(dplyr)
+library(kableExtra)
+library(descr)
+library(table1)
+library(RColorBrewer)
+my.col <- brewer.pal(n = 8, name = 'RdBu')
+setwd("D:/大三/下/巨量")
+cars <- read.table("training.csv", sep=',', header=T)
+vars <- read.csv("dictionary.csv", sep=',', header=T)
+attach(cars)
+```
+
+## Data Source and Introduction
+<font size="3">**Name:**</font>
+  
+Don't Get Kicked!!
+
+<font size="3">**From:**</font>
+
+Kaggle Competition
+
+<font size="3">**Introduction:**</font>
+
+This data set was published by Carvana at www.kaggle.com, which refers to the considerations a buyer has to make in order to buy a used car that's in the best possible conditions.
+
+<font size="3">**Source:**</font>
+  
+Carvana
+
+<font size="3">**URL:**</font>
+  
+<https://www.kaggle.com/c/DontGetKicked/data>.
+
+##Variable Description
+
+<font size="3">**Independent Variables**</font>
+```{r indep}
+kable(vars[-4, ], table.attr='class="table-fixed-header"', row.names = F) %>%
+  kable_styling(full_width=F)
+```
+
+<font size="3">**Dependent Variables**</font>
+```{r dep}
+kable(vars[4, ], table.attr='class="table-fixed-header"', row.names=F) %>%
+  kable_styling(position="left", full_width=T)
+```
+
+## Data Appearance
+
+```{r data}
+kable(head(cars), table.attr='class="table-fixed-header"') %>%
+  kable_styling() %>%
+  scroll_box(height=F)
+```
+
+## Summary of Variable
+<font size="3">**Dependent Variable**</font>
+```{r response}
+
+dep <- as.data.frame(table(IsBadBuy))
+kable(dep, table.attr='class="table-fixed-header"', align="l") %>%
+  kable_styling(full_width=F, position="float_left")
+
+```
+
+```{r response plot, echo=FALSE}
+
+barplot(table(IsBadBuy), col=brewer.pal(n = 8, name = "RdBu"))
+
+```
+
+```{r trans, include=FALSE}
+
+cars$MMRAcquisitionAuctionAveragePrice <- as.numeric(as.character(MMRAcquisitionAuctionAveragePrice))
+cars$MMRAcquisitionAuctionCleanPrice <- as.numeric(as.character(MMRAcquisitionAuctionCleanPrice))
+cars$MMRAcquisitionRetailAveragePrice <- as.numeric(as.character(MMRAcquisitionRetailAveragePrice))
+cars$MMRAcquisitionRetailCleanPrice <- as.numeric(as.character(MMRAcquisitionRetailCleanPrice))
+cars$MMRCurrentAuctionAveragePrice <- as.numeric(as.character(MMRCurrentAuctionAveragePrice))
+cars$MMRCurrentAuctionCleanPrice <- as.numeric(as.character(MMRCurrentAuctionCleanPrice))
+cars$MMRCurrentRetailAveragePrice <- as.numeric(as.character(MMRCurrentRetailAveragePrice))
+cars$MMRCurrentRetailCleanPrice <- as.numeric(as.character(MMRCurrentRetailCleanPrice))
+cars$VehicleAge<-as.numeric(as.character((cars$VehicleAge)))
+cars$VehOdo<-as.numeric(as.character((cars$VehOdo)))
+cars$VNZIP<-as.numeric(as.character((cars$VNZIP)))
+cars$VehBCost<-as.numeric(as.character((cars$VehBCost)))
+cars$WarrantyCost<-as.numeric(as.character((cars$WarrantyCost)))
+
+cars$VNZIP <- as.factor(cars$VNZIP)
+cars$VehYear <- as.factor(cars$VehYear)
+cars$VehicleAge <- as.factor(cars$VehicleAge)
+cars$IsOnlineSale <- as.factor(cars$IsOnlineSale)
+
+levels(cars$Transmission)[1] <- "NULL"
+levels(cars$Transmission)[3] <- "MANUAL"
+
+label(cars$Auction) <- "Auction"
+label(cars$VehYear) <- "VehYear"
+label(cars$Make) <- "Make"
+label(cars$Color) <- "Color"
+label(cars$Transmission) <- "Transmission"
+label(cars$WheelType) <- "WheelType"
+label(cars$Nationality) <- "Nationality"
+label(cars$Size) <- "Size"
+label(cars$TopThreeAmericanName) <- "TopThreeAmericanName"
+label(cars$PRIMEUNIT) <- "PRIMEUNIT"
+label(cars$AUCGUART) <- "AUCGUART"
+label(cars$VNST) <- "VNST"
+label(cars$IsOnlineSale) <- "IsOnlineSale"
+
+attach(cars)
+```
+
+```{r table1, include=F}
+cate.table <- table1(
+  ~ Auction
+  + VehYear
+  + VehicleAge
+  + Make
+  + Color
+  + Transmission
+  + WheelType
+  + Nationality
+  + Size
+  + TopThreeAmericanName
+  + PRIMEUNIT
+  + AUCGUART
+  + VNST
+  + IsOnlineSale 
+  + VNZIP|
+    IsBadBuy,
+  data = cars,
+  overall="Total" 
+)
+cont.table <- table1(
+  ~ VehOdo
+  + MMRAcquisitionAuctionAveragePrice
+  + MMRAcquisitionAuctionCleanPrice
+  + MMRAcquisitionRetailAveragePrice
+  + MMRAcquisitionRetailCleanPrice
+  + MMRCurrentAuctionAveragePrice
+  + MMRCurrentAuctionCleanPrice
+  + MMRCurrentRetailAveragePrice
+  + MMRCurrentRetailCleanPrice
+  + VehBCost
+  + WarrantyCost |
+    IsBadBuy,
+  data = cars
+)
+```
+
+# Tables of Categorical Variables{.tabset}
+
+## Categorical
+```{r cate, echo=FALSE}
+cate.table
+```
+
+## Continous
+```{r cont, echo=FALSE}
+cont.table
+```
+
+```{r balloonplot, include=F}
+
+balloon <- function(x){
+  df <- table(x, IsBadBuy)
+  df <- as.matrix.data.frame(df)
+  row.names(df) <- as.factor(levels(x))
+  colnames(df) <- c("Good", "Bad")
+  ggballoonplot(df, fill = "value")+
+    scale_fill_viridis_c(option = "C")+
+    scale_fill_gradientn(colors = my.col)
+}
+
+many.cate <- cbind.data.frame(Make, Color, Size, VNST, VNZIP)
+
+```
+
+```{r barplots, include=F}
+bar <- function(data){
+  df <- table(data, IsBadBuy)
+  df <- as.data.frame(df)
+  levels(df$IsBadBuy) <- c("Good", "Bad")
+  ggplot(df, aes(x=data, y=Freq, fill=IsBadBuy)) +
+    geom_bar(stat="identity", position=position_dodge())
+}
+less.cate <- cbind.data.frame(Auction, VehYear, VehicleAge, Transmission, WheelType, Nationality, TopThreeAmericanName, PRIMEUNIT, AUCGUART, IsOnlineSale)
+
+```
+
+
+# Plots of Categorical Variables{.tabset}
+
+## Make
+```{r ball1, echo=FALSE}
+ggplotly(balloon(many.cate[, 1]))
+```
+
+## Color
+```{r ball2, echo=FALSE}
+ggplotly(balloon(many.cate[, 2]))
+```
+
+## Size
+```{r ball3, echo=FALSE}
+ggplotly(balloon(many.cate[, 3]))
+```
+
+## VNST
+```{r ball4, echo=FALSE}
+ggplotly(balloon(many.cate[, 4]))
+```
+
+## VNZIP
+```{r ball5, echo=FALSE}
+ggplotly(balloon(many.cate[, 5]))
+```
+
+## Auction
+```{r bar1, echo=FALSE}
+ggplotly(bar(less.cate[, 1]))
+```
+
+## VehYear
+```{r bar2, echo=FALSE}
+ggplotly(bar(less.cate[, 2]))
+```
+
+## VehicleAge
+```{r bar3, echo=FALSE}
+ggplotly(bar(less.cate[, 3]))
+```
+
+## Transmission
+```{r bar4, echo=FALSE}
+ggplotly(bar(less.cate[, 4]))
+```
+
+## WheelType
+```{r bar5, echo=FALSE}
+ggplotly(bar(less.cate[, 5]))
+```
+
+## Nationality
+```{r bar6, echo=FALSE}
+ggplotly(bar(less.cate[, 6]))
+```
+
+## TopThreeAmericanName
+```{r bar7, echo=FALSE}
+ggplotly(bar(less.cate[, 7]))
+```
+
+## PRIMEUNIT
+```{r bar8, echo=FALSE}
+ggplotly(bar(less.cate[, 8]))
+```
+
+## AUCGUART
+```{r bar9, echo=FALSE}
+ggplotly(bar(less.cate[, 9]))
+```
+
+## IsOnlineSale
+```{r bar10, echo=FALSE}
+ggplotly(bar(less.cate[, 10]))
+```
+
+#Plots of Continuous Variables{.tabset .tabset-dropdown}
+
+## VehOdo
+```{r VehOdo, echo=FALSE}
+ggplot(cars, aes(x=IsBadBuy, y=VehOdo, color =IsBadBuy, group=IsBadBuy))+geom_boxplot()+coord_cartesian(xlim = c(-1, 2))+coord_flip()
+ggplot(cars, aes(x=cars$VehOdo, fill=as.character(((as.numeric(as.character(cars$IsBadBuy)))+1)*3)))+ geom_density(alpha=.3)+ scale_fill_discrete(name = "IsBadBuy", labels = c("Good", "Bad"))
+```
+
+## VehBCost
+```{r VehBCost, echo=FALSE}
+ggplot(cars, aes(x=IsBadBuy, y=VehBCost, color =IsBadBuy, group=IsBadBuy)) +geom_boxplot()+coord_cartesian(xlim = c(-1, 2))+coord_flip()
+ggplot(cars, aes(x=cars$VehBCost, fill=as.character(((as.numeric(as.character(cars$IsBadBuy)))+1)*3)))+ geom_density(alpha=.3)+ scale_fill_discrete(name = "IsBadBuy", labels = c("Good", "Bad"))
+```
+
+## WarrantyCost
+```{r WarrantyCost, echo=FALSE}
+ggplot(cars, aes(x=IsBadBuy, y=WarrantyCost, color =IsBadBuy, group=IsBadBuy))+geom_boxplot()+coord_cartesian(xlim = c(-1, 2))+coord_flip()
+ggplot(cars, aes(x=cars$WarrantyCost, fill=as.character(((as.numeric(as.character(cars$IsBadBuy)))+1)*3)))+ geom_density(alpha=.3)+ scale_fill_discrete(name = "IsBadBuy", labels = c("Good", "Bad"))
+```
+
+## MMRAcquisitionAuctionAveragePrice
+```{r MMRAcquisitionAuctionAveragePrice, echo=FALSE}
+mis <- which(MMRCurrentAuctionAveragePrice %in% NA)
+pIsBadBuy <- IsBadBuy[-mis] 
+pIsBadBuy <- as.factor(pIsBadBuy)
+mMMRCurrentAuctionAveragePrice <- MMRCurrentAuctionAveragePrice[-mis]
+data1 <- data.frame(c(1:length(mMMRCurrentAuctionAveragePrice)), ncol=2, nrow=length(mMMRCurrentAuctionAveragePrice))
+data1[, 1] <- as.matrix(mMMRCurrentAuctionAveragePrice, ncol=1)
+data1[, 2] <- as.matrix(pIsBadBuy, ncol=1)
+
+ggplot(data1 , aes(x=pIsBadBuy,y=mMMRCurrentAuctionAveragePrice, color =pIsBadBuy, group=(as.factor(as.numeric(as.character(pIsBadBuy))))) )+scale_fill_discrete(labels = c("Good", "Bad"))+geom_boxplot() +coord_flip()
+
+ggplot(data1, aes(x=mMMRCurrentAuctionAveragePrice, fill=as.character(((as.numeric(as.character(pIsBadBuy)))+1)*3)))+ geom_density(alpha=.3)+ scale_fill_discrete(name = "IsBadBuy", labels = c("Good", "Bad"))
+```
+
+## MMRAcquisitionAuctionCleanPrice
+```{r MMRAcquisitionAuctionCleanPrice, echo=FALSE}
+mis <- which(MMRAcquisitionAuctionCleanPrice %in% NA)
+
+pIsBadBuy <- IsBadBuy[-mis] 
+pIsBadBuy <- as.factor(pIsBadBuy)
+mMMRAcquisitionAuctionCleanPrice <- MMRAcquisitionAuctionCleanPrice[-mis]
+data1 <- data.frame(c(1:length(mMMRAcquisitionAuctionCleanPrice)), ncol=2, nrow=length(mMMRAcquisitionAuctionCleanPrice))
+data1[, 1] <- as.matrix(mMMRAcquisitionAuctionCleanPrice, ncol=1)
+data1[, 2] <- as.matrix(pIsBadBuy, ncol=1)
+
+ggplot(data1 , aes(x=pIsBadBuy,y=mMMRAcquisitionAuctionCleanPrice, color =pIsBadBuy, group=pIsBadBuy ))+geom_boxplot()+coord_flip()
+ggplot(data1, aes(x=mMMRAcquisitionAuctionCleanPrice, fill=as.character(((as.numeric(as.character(pIsBadBuy)))+1)*3)))+ geom_density(alpha=.3)+ scale_fill_discrete(name = "IsBadBuy", labels = c("Good", "Bad"))
+```
+
+## MMRAcquisitionRetailAveragePrice
+```{r MMRAcquisitionRetailAveragePrice2, echo=FALSE}
+mis <- which(MMRAcquisitionRetailAveragePrice %in% NA)
+
+pIsBadBuy <- IsBadBuy[-mis] 
+pIsBadBuy <- as.factor(pIsBadBuy)
+mMMRAcquisitionRetailAveragePrice <- MMRAcquisitionRetailAveragePrice[-mis]
+data1 <- data.frame(c(1:length(mMMRAcquisitionRetailAveragePrice)), ncol=2, nrow=length(mMMRAcquisitionRetailAveragePrice))
+data1[, 1] <- as.matrix(mMMRAcquisitionRetailAveragePrice, ncol=1)
+data1[, 2] <- as.matrix(pIsBadBuy, ncol=1)
+
+ggplot(data1 , aes(x=pIsBadBuy,y=mMMRAcquisitionRetailAveragePrice, color =pIsBadBuy, group=pIsBadBuy ))+geom_boxplot()+coord_flip()
+ggplot(data1, aes(x=mMMRAcquisitionRetailAveragePrice, fill=as.character(((as.numeric(as.character(pIsBadBuy)))+1)*3)))+ geom_density(alpha=.3)+ scale_fill_discrete(name = "IsBadBuy", labels = c("Good", "Bad"))
+```
+
+## MMRAcquisitionRetailCleanPrice
+```{r MMRAcquisitionRetailCleanPrice, echo=FALSE}
+mis <- which(MMRAcquisitionRetailCleanPrice %in% NA)
+
+pIsBadBuy <- IsBadBuy[-mis] 
+pIsBadBuy <- as.factor(pIsBadBuy)
+mMMRAcquisitionRetailCleanPrice <- MMRAcquisitionRetailCleanPrice[-mis]
+data1 <- data.frame(c(1:length(mMMRAcquisitionRetailCleanPrice)), ncol=2, nrow=length(mMMRAcquisitionRetailCleanPrice))
+data1[, 1] <- as.matrix(mMMRAcquisitionRetailCleanPrice, ncol=1)
+data1[, 2] <- as.matrix(pIsBadBuy, ncol=1)
+
+ggplot(data1 , aes(x=pIsBadBuy,y=mMMRAcquisitionRetailCleanPrice, color =pIsBadBuy, group=pIsBadBuy ))+geom_boxplot()+coord_flip()
+ggplot(data1, aes(x=mMMRAcquisitionRetailCleanPrice, fill=as.character(((as.numeric(as.character(pIsBadBuy)))+1)*3)))+ geom_density(alpha=.3)+ scale_fill_discrete(name = "IsBadBuy", labels = c("Good", "Bad"))
+```
+
+## MMRCurrentAuctionAveragePrice
+```{r MMRCurrentAuctionAveragePrice, echo=FALSE}
+mis <- which(MMRCurrentAuctionAveragePrice %in% NA)
+
+pIsBadBuy <- IsBadBuy[-mis] 
+pIsBadBuy <- as.factor(pIsBadBuy)
+mMMRCurrentAuctionAveragePrice <- MMRCurrentAuctionAveragePrice[-mis]
+data1 <- data.frame(c(1:length(mMMRCurrentAuctionAveragePrice)), ncol=2, nrow=length(mMMRCurrentAuctionAveragePrice))
+data1[, 1] <- as.matrix(mMMRCurrentAuctionAveragePrice, ncol=1)
+data1[, 2] <- as.matrix(pIsBadBuy, ncol=1)
+
+ggplot(data1 , aes(x=pIsBadBuy,y=mMMRCurrentAuctionAveragePrice, color =pIsBadBuy, group=pIsBadBuy ))+geom_boxplot()+coord_flip()
+ggplot(data1, aes(x=mMMRCurrentAuctionAveragePrice, fill=as.character(((as.numeric(as.character(pIsBadBuy)))+1)*3)))+ geom_density(alpha=.3)+ scale_fill_discrete(name = "IsBadBuy", labels = c("Good", "Bad"))
+```
+
+## MMRCurrentAuctionCleanPrice
+```{r MMRCurrentAuctionCleanPrice, echo=FALSE}
+mis <- which(MMRCurrentAuctionCleanPrice %in% NA)
+
+pIsBadBuy <- IsBadBuy[-mis] 
+pIsBadBuy <- as.factor(pIsBadBuy)
+mMMRCurrentAuctionCleanPrice <- MMRCurrentAuctionCleanPrice[-mis]
+data1 <- data.frame(c(1:length(mMMRCurrentAuctionCleanPrice)), ncol=2, nrow=length(mMMRCurrentAuctionCleanPrice))
+data1[, 1] <- as.matrix(mMMRCurrentAuctionCleanPrice, ncol=1)
+data1[, 2] <- as.matrix(pIsBadBuy, ncol=1)
+
+ggplot(data1 , aes(x=pIsBadBuy,y=mMMRCurrentAuctionCleanPrice, color =pIsBadBuy, group=pIsBadBuy ))+geom_boxplot()+coord_flip()
+ggplot(data1, aes(x=mMMRCurrentAuctionCleanPrice, fill=as.character(((as.numeric(as.character(pIsBadBuy)))+1)*3)))+ geom_density(alpha=.3)+ scale_fill_discrete(name = "IsBadBuy", labels = c("Good", "Bad"))
+
+```
+
+## MMRCurrentRetailAveragePrice
+```{r MMRCurrentRetailAveragePrice, echo=FALSE}
+mis <- which(MMRCurrentRetailAveragePrice %in% NA)
+
+pIsBadBuy <- IsBadBuy[-mis] 
+pIsBadBuy <- as.factor(pIsBadBuy)
+mMMRCurrentRetailAveragePrice <- MMRCurrentRetailAveragePrice[-mis]
+data1 <- data.frame(c(1:length(mMMRCurrentRetailAveragePrice)), ncol=2, nrow=length(mMMRCurrentRetailAveragePrice))
+data1[, 1] <- as.matrix(mMMRCurrentRetailAveragePrice, ncol=1)
+data1[, 2] <- as.matrix(pIsBadBuy, ncol=1)
+
+ggplot(data1 , aes(x=pIsBadBuy,y=mMMRCurrentRetailAveragePrice, color =pIsBadBuy, group=pIsBadBuy ))+geom_boxplot()+coord_flip()
+ggplot(data1, aes(x=mMMRCurrentRetailAveragePrice, fill=as.character(((as.numeric(as.character(pIsBadBuy)))+1)*3)))+ geom_density(alpha=.3)+ scale_fill_discrete(name = "IsBadBuy", labels = c("Good", "Bad"))
+```
+
+## MMRCurrentRetailCleanPrice
+```{r MMRCurrentRetailCleanPrice, echo=F}
+mis <- which(MMRCurrentRetailCleanPrice %in% NA)
+
+pIsBadBuy <- IsBadBuy[-mis] 
+pIsBadBuy <- as.factor(pIsBadBuy)
+mMMRCurrentRetailCleanPrice <- MMRCurrentRetailCleanPrice[-mis]
+data1 <- data.frame(c(1:length(mMMRCurrentRetailCleanPrice)), ncol=2, nrow=length(mMMRCurrentRetailCleanPrice))
+data1[, 1] <- as.matrix(mMMRCurrentRetailCleanPrice, ncol=1)
+data1[, 2] <- as.matrix(pIsBadBuy, ncol=1)
+
+ggplot(data1 , aes(x=pIsBadBuy,y=mMMRCurrentRetailCleanPrice, color =pIsBadBuy, group=pIsBadBuy ))+geom_boxplot()+coord_flip()
+ggplot(data1, aes(x=mMMRCurrentRetailCleanPrice, fill=as.character(((as.numeric(as.character(pIsBadBuy)))+1)*3)))+ geom_density(alpha=.3)+ scale_fill_discrete(name = "IsBadBuy", labels = c("Good", "Bad"))
+```
